@@ -1,0 +1,18 @@
+{
+  "name": "hospital-appointment-system",
+  "version": "2.0.0",
+  "description": "Hospital Online Appointment Booking and Scheduling System (Node.js, Express, MongoDB, Bootstrap)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.6.1",
+    "express": "^4.19.2",
+    "express-validator": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.5.0"
+  }
+}
