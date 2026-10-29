@@ -33,18 +33,29 @@ const DAY_NAMES = [
 ];
 
 const validDate = value => {
+    // Validate YYYY-MM-DD without timezone conversion errors.
     if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(value) ||
-        isNaN(new Date(value + 'T00:00:00')) ||
-        new Date(value + 'T00:00:00').toISOString().slice(0, 10) !== value
+        typeof value !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(value)
     ) {
         throw new Error('Enter a valid date');
     }
 
+    const parsedDate = new Date(`${value}T00:00:00Z`);
+
+    if (
+        Number.isNaN(parsedDate.getTime()) ||
+        parsedDate.toISOString().slice(0, 10) !== value
+    ) {
+        throw new Error('Enter a valid date');
+    }
+
+    // Prevent booking in the past.
     if (value < todayStr()) {
         throw new Error('Date cannot be in the past');
     }
 
+    // Allow bookings for the next 90 days.
     const max = new Date();
     max.setDate(max.getDate() + 90);
 
