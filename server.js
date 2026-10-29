@@ -13,21 +13,30 @@ const { doctors: seedDoctors, emailFor } = require('./seed/doctors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGO_URI =
-  process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/appointmentDB';
 
-// Use a secret from .env in production.
-if (!process.env.JWT_SECRET) {
-  console.warn(
-    'WARNING: JWT_SECRET is not set in .env. Add a strong secret before logging in.'
-  );
+// Use MongoDB Atlas in production.
+const MONGO_URI = process.env.MONGO_URI;
+
+// Require secrets in production.
+if (process.env.NODE_ENV === 'production') {
+  if (!MONGO_URI) {
+    console.error('Startup failed: MONGO_URI is missing in environment variables.');
+    process.exit(1);
+  }
+
+  if (!process.env.JWT_SECRET) {
+    console.error('Startup failed: JWT_SECRET is missing in environment variables.');
+    process.exit(1);
+  }
+} else if (!process.env.JWT_SECRET) {
+  console.warn('WARNING: JWT_SECRET is not set. Configure it before logging in.');
 }
 
 // Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Load and validate Express routers
+// Load and validate Express routers.
 function loadRouter(routePath) {
   const router = require(routePath);
 
@@ -66,7 +75,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Prepare database and default accounts
+// Prepare database and default accounts.
 async function prepareDatabase() {
   // Remove old appointments without a patient reference.
   const old = await Appointment.deleteMany({
@@ -106,8 +115,13 @@ async function prepareDatabase() {
   }
 
   // Create doctor login accounts where missing.
-  const doctorPassword =
-    process.env.DEFAULT_DOCTOR_PASSWORD || 'Doctor@123';
+  const doctorPassword = process.env.DEFAULT_DOCTOR_PASSWORD;
+
+  if (!doctorPassword && process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'DEFAULT_DOCTOR_PASSWORD is missing from environment variables.'
+    );
+  }
 
   for (const doctor of await Doctor.find()) {
     const existingUser = await User.findOne({
@@ -124,7 +138,10 @@ async function prepareDatabase() {
         phone: doctor.phone,
         role: 'doctor',
         doctor: doctor._id,
-        password: await bcrypt.hash(doctorPassword, 10)
+        password: await bcrypt.hash(
+          doctorPassword || 'Doctor@123',
+          10
+        )
       });
 
       console.log(`Doctor login created: ${doctor.email}`);
@@ -143,14 +160,22 @@ async function prepareDatabase() {
       process.env.ADMIN_EMAIL || 'admin@carewell.com'
     ).toLowerCase();
 
-    const adminPassword =
-      process.env.ADMIN_PASSWORD || 'Admin@123';
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (!adminPassword && process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'ADMIN_PASSWORD is missing from environment variables.'
+      );
+    }
 
     await User.create({
       name: 'Administrator',
       email: adminEmail,
       role: 'admin',
-      password: await bcrypt.hash(adminPassword, 10)
+      password: await bcrypt.hash(
+        adminPassword || 'Admin@123',
+        10
+      )
     });
 
     console.log(`Admin account created: ${adminEmail}`);
@@ -160,14 +185,23 @@ async function prepareDatabase() {
 // Connect to MongoDB and start the server.
 async function startServer() {
   try {
-    await mongoose.connect(MONGO_URI);
-    console.log('MongoDB connected');
+    if (!MONGO_URI) {
+      throw new Error(
+        'MONGO_URI is missing. Add your MongoDB Atlas connection string to the environment.'
+      );
+    }
+
+    await mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 15000
+    });
+
+    console.log('MongoDB Atlas connected successfully');
 
     await User.init();
     await prepareDatabase();
 
-    app.listen(PORT, () => {
-      console.log(`Server running at http://localhost:${PORT}`);
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server listening on port ${PORT}`);
     });
   } catch (error) {
     console.error('Startup failed:', error.message);
